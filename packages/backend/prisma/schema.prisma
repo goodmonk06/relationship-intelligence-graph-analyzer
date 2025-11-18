@@ -1,0 +1,78 @@
+// Prisma schema for Relationship Intelligence Graph Analyzer
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Entity types in the CRM graph
+enum EntityType {
+  ACCOUNT     // Companies/Organizations
+  CONTACT     // People
+  DEAL        // Opportunities/Sales
+  ORG         // Organizational units
+  OTHER       // Flexible for other entity types
+}
+
+// Types of relationships between entities
+enum RelationType {
+  INTRODUCED_BY   // Contact introduced by another contact
+  WORKS_AT        // Contact works at Account
+  INVOLVED_IN     // Contact/Account involved in Deal
+  REPORTS_TO      // Contact reports to another contact
+  PARTNERS_WITH   // Account partners with another account
+  BOUGHT_FROM     // Deal bought from Account
+  OTHER           // Custom relationship types
+}
+
+// Core entity model - represents nodes in the graph
+model Entity {
+  id        String     @id @default(cuid())
+  type      EntityType
+  name      String
+  metaJson  Json?      // Flexible metadata storage (email, phone, revenue, etc.)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations where this entity is the source
+  relationsFrom Relation[] @relation("RelationFrom")
+
+  // Relations where this entity is the target
+  relationsTo   Relation[] @relation("RelationTo")
+
+  @@index([type])
+  @@index([name])
+}
+
+// Edge model - represents relationships between entities
+model Relation {
+  id           String       @id @default(cuid())
+  fromId       String
+  toId         String
+  relationType RelationType
+  strength     Float        @default(1.0) // 0.0 - 1.0, represents relationship strength
+  metaJson     Json?        // Additional relationship metadata
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  from Entity @relation("RelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   Entity @relation("RelationTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@index([fromId])
+  @@index([toId])
+  @@index([relationType])
+  @@index([createdAt])
+}
+
+// Snapshot of computed graph metrics
+model GraphMetricSnapshot {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  metricsJson Json    // Stores per-node metrics: { entityId: { degree, inDegree, outDegree, importance, ... }}
+
+  @@index([createdAt])
+}
