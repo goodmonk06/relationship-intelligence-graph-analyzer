@@ -12,8 +12,23 @@
     "dev:backend": "npm run dev --workspace=packages/backend",
     "dev:frontend": "npm run dev --workspace=packages/frontend",
     "build": "npm run build --workspaces",
+    "start": "concurrently \"npm run start --workspace=packages/backend\" \"npm run start --workspace=packages/frontend\"",
+    "test": "npm run test --workspaces",
+    "test:backend": "npm run test --workspace=packages/backend",
+    "test:frontend": "npm run test --workspace=packages/frontend",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "format": "npm run format --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "db:generate": "npm run db:generate --workspace=packages/backend",
     "db:migrate": "npm run db:migrate --workspace=packages/backend",
-    "db:seed": "npm run db:seed --workspace=packages/backend"
+    "db:push": "npm run db:push --workspace=packages/backend",
+    "db:seed": "npm run db:seed --workspace=packages/backend",
+    "db:studio": "npm run db:studio --workspace=packages/backend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up -d"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

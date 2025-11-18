@@ -18,6 +18,23 @@ enum EntityType {
   OTHER       // Flexible for other entity types
 }
 
+// Entity status
+enum EntityStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+// Source of entity creation
+enum SourceType {
+  MANUAL
+  API
+  IMPORT_CSV
+  IMPORT_SALESFORCE
+  IMPORT_HUBSPOT
+  OTHER
+}
+
 // Types of relationships between entities
 enum RelationType {
   INTRODUCED_BY   // Contact introduced by another contact
@@ -26,17 +43,35 @@ enum RelationType {
   REPORTS_TO      // Contact reports to another contact
   PARTNERS_WITH   // Account partners with another account
   BOUGHT_FROM     // Deal bought from Account
+  COLLABORATES_WITH // Peer-to-peer contact collaboration
+  COMPETES_WITH   // Account competition
+  INFLUENCES      // Contact influences decisions
+  ATTENDED        // Contact attended event/meeting
   OTHER           // Custom relationship types
+}
+
+// Activity types for interaction tracking
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+  EVENT
+  OTHER
 }
 
 // Core entity model - represents nodes in the graph
 model Entity {
-  id        String     @id @default(cuid())
+  id        String       @id @default(cuid())
   type      EntityType
   name      String
-  metaJson  Json?      // Flexible metadata storage (email, phone, revenue, etc.)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  status    EntityStatus @default(ACTIVE)
+  owner     String?      // User ID or email of entity owner
+  source    SourceType   @default(MANUAL)
+  metaJson  Json?        // Flexible metadata storage (email, phone, revenue, etc.)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   // Relations where this entity is the source
   relationsFrom Relation[] @relation("RelationFrom")
@@ -44,8 +79,24 @@ model Entity {
   // Relations where this entity is the target
   relationsTo   Relation[] @relation("RelationTo")
 
+  // Tags applied to this entity
+  entityTags EntityTag[]
+
+  // Notes attached to this entity
+  notes Note[]
+
+  // Activities involving this entity
+  activitiesFrom Activity[] @relation("ActivityFrom")
+  activitiesTo   Activity[] @relation("ActivityTo")
+
+  // Segments this entity belongs to
+  segments SegmentMember[]
+
   @@index([type])
   @@index([name])
+  @@index([status])
+  @@index([owner])
+  @@index([createdAt])
 }
 
 // Edge model - represents relationships between entities
@@ -75,4 +126,104 @@ model GraphMetricSnapshot {
   metricsJson Json    // Stores per-node metrics: { entityId: { degree, inDegree, outDegree, importance, ... }}
 
   @@index([createdAt])
+}
+
+// Tags for categorizing entities
+model Tag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String?  // Hex color code for UI display
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Entities with this tag
+  entityTags EntityTag[]
+
+  @@index([name])
+}
+
+// Many-to-many relation between Entity and Tag
+model EntityTag {
+  id        String   @id @default(cuid())
+  entityId  String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, tagId])
+  @@index([entityId])
+  @@index([tagId])
+}
+
+// Notes attached to entities
+model Note {
+  id        String   @id @default(cuid())
+  entityId  String
+  content   String   @db.Text
+  author    String?  // User ID or email
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([createdAt])
+}
+
+// Activities (interactions) between entities
+model Activity {
+  id           String       @id @default(cuid())
+  type         ActivityType
+  title        String
+  description  String?      @db.Text
+  fromId       String       // Entity initiating the activity
+  toId         String?      // Entity receiving the activity (optional)
+  occurredAt   DateTime     // When the activity happened
+  duration     Int?         // Duration in minutes
+  metaJson     Json?        // Additional activity data
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  from Entity  @relation("ActivityFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   Entity? @relation("ActivityTo", fields: [toId], references: [id], onDelete: SetNull)
+
+  @@index([fromId])
+  @@index([toId])
+  @@index([type])
+  @@index([occurredAt])
+}
+
+// Segments for grouping entities
+model Segment {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  criteria    Json?    // Stored filter criteria for dynamic segments
+  isStatic    Boolean  @default(true) // Static vs dynamic segmentation
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Entities in this segment
+  members SegmentMember[]
+
+  @@index([name])
+  @@index([createdAt])
+}
+
+// Many-to-many relation between Entity and Segment
+model SegmentMember {
+  id        String   @id @default(cuid())
+  segmentId String
+  entityId  String
+  addedAt   DateTime @default(now())
+
+  segment Segment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  entity  Entity  @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([segmentId, entityId])
+  @@index([segmentId])
+  @@index([entityId])
 }
